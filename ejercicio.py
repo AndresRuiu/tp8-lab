@@ -4,8 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.dates import MonthLocator, YearLocator
 
-## ATENCION: Debe colocar la direccion en la que ha sido publicada la aplicacion en la siguiente linea\
-# url = 'https://tp8-555555.streamlit.app/'
+url = 'https://tp8-58879.streamlit.app'
 
 def mostrar_informacion_alumno():
     with st.container(border=True):
@@ -20,10 +19,8 @@ def cargar_datos(archivo_csv):
     return None
 
 def calcular_metricas(df, producto=None):
-    # Conversión de fecha más eficiente
     df['Fecha'] = pd.to_datetime(df['Año'].astype(str) + '-' + df['Mes'].astype(str), format='%Y-%m')
     
-    # Cálculos vectorizados con manejo de división por cero
     df['Precio_promedio'] = np.divide(df['Ingreso_total'], df['Unidades_vendidas'], 
                                        out=np.zeros_like(df['Ingreso_total'], dtype=float), 
                                        where=df['Unidades_vendidas']!=0)
@@ -33,16 +30,13 @@ def calcular_metricas(df, producto=None):
                                        out=np.zeros_like(df['Ingreso_total'], dtype=float), 
                                        where=df['Ingreso_total']!=0)
     
-    # Ordenamiento más eficiente
     df_ordenado = df.sort_values(['Producto', 'Año', 'Mes'])
     
-    # Uso de transform para cálculos de columnas anteriores
     df_ordenado['Precio_promedio_anterior'] = df_ordenado.groupby('Producto')['Precio_promedio'].transform(lambda x: x.shift(1))
     df_ordenado['Margen_promedio_anterior'] = df_ordenado.groupby('Producto')['Margen_promedio'].transform(lambda x: x.shift(1))
     df_ordenado['Unidades_vendidas_anterior'] = df_ordenado.groupby('Producto')['Unidades_vendidas'].transform(lambda x: x.shift(1))
     
     def calcular_variacion(valor_actual, valor_anterior):
-        # Función vectorizada para cálculo de variación
         return np.where(valor_anterior != 0, 
                         (valor_actual - valor_anterior) / valor_anterior * 100, 
                         0)
@@ -61,7 +55,6 @@ def calcular_metricas(df, producto=None):
         
         row = metricas_producto.iloc[0]
         
-        # Uso de función de variación vectorizada
         var_precio = calcular_variacion(row['precio_promedio'], row['precio_promedio_anterior'])
         var_margen = (row['margen_promedio'] - row['margen_promedio_anterior']) * 100
         var_unidades = calcular_variacion(row['unidades_vendidas'], row['unidades_vendidas_anterior'])
@@ -82,23 +75,19 @@ def calcular_metricas(df, producto=None):
     ).reset_index()
 
 def calcular_tendencia(x, y):
-    # Usar polyfit de NumPy para estimación de tendencia más robusta
     return np.polyfit(x, y, 1)
 
 def crear_grafico_ventas(df, producto):
     df_producto = df[df['Producto'] == producto].copy()
     
-    # Conversión de fecha más eficiente
     df_producto['Fecha'] = pd.to_datetime(df_producto['Año'].astype(str) + '-' + 
                                         df_producto['Mes'].astype(str), format='%Y-%m')
     
     ventas_mensuales = df_producto.groupby('Fecha')['Unidades_vendidas'].sum().reset_index()
     
-    # Usar numpy para cálculos
     x = np.arange(len(ventas_mensuales))
     y = ventas_mensuales['Unidades_vendidas'].values
     
-    # Usar polyfit para cálculo de tendencia
     slope, intercept = calcular_tendencia(x, y)
     tendencia = slope * x + intercept
     
@@ -131,7 +120,6 @@ def crear_grafico_ventas(df, producto):
     return fig
 
 def main():
-    # Usar todo el ancho disponible
     st.set_page_config(layout="wide")
 
     with st.sidebar:
@@ -182,7 +170,6 @@ def main():
                             f"{var_unidades:+.2f}%")
                 
                 with col_grafico:
-                    st.write("### Evolución de Ventas")
                     fig = crear_grafico_ventas(df, producto)
                     fig.set_figwidth(10)
                     fig.set_figheight(6)
