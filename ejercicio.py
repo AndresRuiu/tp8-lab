@@ -131,6 +131,9 @@ def crear_grafico_ventas(df, producto):
     return fig
 
 def main():
+    # Usar todo el ancho disponible
+    st.set_page_config(layout="wide")
+
     with st.sidebar:
         st.title("Cargar archivo de datos")
         archivo_csv = st.file_uploader("Subir archivo CSV", type=['csv'])
@@ -162,9 +165,10 @@ def main():
                 margen_promedio, var_margen,
                 unidades_vendidas, var_unidades) = calcular_metricas(df, producto)
                 
-                col_metricas, col_grafico = st.columns([1, 2]) 
+                col_metricas, col_grafico = st.columns([1, 2], gap="large") 
                 
                 with col_metricas:
+                    st.write("### Métricas")
                     st.metric("Precio Promedio", 
                             f"${precio_promedio:,.0f}", 
                             f"{var_precio:+.2f}%")
@@ -178,7 +182,11 @@ def main():
                             f"{var_unidades:+.2f}%")
                 
                 with col_grafico:
-                    st.pyplot(crear_grafico_ventas(df, producto))
+                    st.write("### Evolución de Ventas")
+                    fig = crear_grafico_ventas(df, producto)
+                    fig.set_figwidth(10)
+                    fig.set_figheight(6)
+                    st.pyplot(fig)
                 
                 plt.close()
 
