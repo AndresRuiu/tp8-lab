@@ -4,8 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.dates import MonthLocator, YearLocator
 
-url = 'https://tp8-58879.streamlit.app'
-
 def mostrar_informacion_alumno():
     with st.container(border=True):
         st.markdown('**Legajo:** 58879')
@@ -19,60 +17,61 @@ def cargar_datos(archivo_csv):
     return None
 
 def calcular_metricas(df, producto=None):
+    df = df.copy()
     df['Fecha'] = pd.to_datetime(df['Año'].astype(str) + '-' + df['Mes'].astype(str), format='%Y-%m')
     
-    df['Precio_promedio'] = np.divide(df['Ingreso_total'], df['Unidades_vendidas'], 
-                                       out=np.zeros_like(df['Ingreso_total'], dtype=float), 
-                                       where=df['Unidades_vendidas']!=0)
+    df['Precio_unitario'] = df['Ingreso_total'].div(df['Unidades_vendidas'])
+    df['Margen_promedio'] = ((df['Ingreso_total'] - df['Costo_total'])
+                            .div(df['Ingreso_total'])
+                            .fillna(0) * 100)
     
-    df['Margen_promedio'] = np.divide(df['Ingreso_total'] - df['Costo_total'], 
-                                       df['Ingreso_total'], 
-                                       out=np.zeros_like(df['Ingreso_total'], dtype=float), 
-                                       where=df['Ingreso_total']!=0)
+    df_producto = df[df['Producto'] == producto] if producto else df
     
-    df_ordenado = df.sort_values(['Producto', 'Año', 'Mes'])
+    def calcular_metricas_periodo(data):
+        return pd.DataFrame({
+            'Precio_unitario': [data['Precio_unitario'].mean()],
+            'Margen_promedio': [data['Margen_promedio'].mean()],
+            'Unidades_vendidas': [data['Unidades_vendidas'].sum()]
+        })
     
-    df_ordenado['Precio_promedio_anterior'] = df_ordenado.groupby('Producto')['Precio_promedio'].transform(lambda x: x.shift(1))
-    df_ordenado['Margen_promedio_anterior'] = df_ordenado.groupby('Producto')['Margen_promedio'].transform(lambda x: x.shift(1))
-    df_ordenado['Unidades_vendidas_anterior'] = df_ordenado.groupby('Producto')['Unidades_vendidas'].transform(lambda x: x.shift(1))
+    metricas_generales = calcular_metricas_periodo(df_producto)
     
-    def calcular_variacion(valor_actual, valor_anterior):
-        return np.where(valor_anterior != 0, 
-                        (valor_actual - valor_anterior) / valor_anterior * 100, 
-                        0)
+    años = sorted(df_producto['Año'].unique())
     
-    if producto:
-        df_producto = df_ordenado[df_ordenado['Producto'] == producto]
+    if len(años) > 1:
+        año_actual = años[-1]
+        año_anterior = años[-2]
         
-        metricas_producto = df_producto.groupby('Producto').agg(
-            precio_promedio=pd.NamedAgg(column='Precio_promedio', aggfunc='mean'),
-            precio_promedio_anterior=pd.NamedAgg(column='Precio_promedio_anterior', aggfunc='mean'),
-            margen_promedio=pd.NamedAgg(column='Margen_promedio', aggfunc='mean'),
-            margen_promedio_anterior=pd.NamedAgg(column='Margen_promedio_anterior', aggfunc='mean'),
-            unidades_vendidas=pd.NamedAgg(column='Unidades_vendidas', aggfunc='sum'),
-            unidades_vendidas_anterior=pd.NamedAgg(column='Unidades_vendidas_anterior', aggfunc='sum')
-        ).reset_index()
+        metricas_año_actual = calcular_metricas_periodo(df_producto[df_producto['Año'] == año_actual])
+        metricas_año_anterior = calcular_metricas_periodo(df_producto[df_producto['Año'] == año_anterior])
         
-        row = metricas_producto.iloc[0]
-        
-        var_precio = calcular_variacion(row['precio_promedio'], row['precio_promedio_anterior'])
-        var_margen = (row['margen_promedio'] - row['margen_promedio_anterior']) * 100
-        var_unidades = calcular_variacion(row['unidades_vendidas'], row['unidades_vendidas_anterior'])
-        
-        return (
-            row['precio_promedio'], var_precio,
-            row['margen_promedio'] * 100, var_margen,
-            row['unidades_vendidas'], var_unidades
-        )
+        variaciones = pd.DataFrame({
+            'var_precio': [(metricas_año_actual['Precio_unitario'].iloc[0] / 
+                           metricas_año_anterior['Precio_unitario'].iloc[0] - 1) * 100 
+                          if metricas_año_anterior['Precio_unitario'].iloc[0] != 0 else 0],
+            
+            'var_margen': [metricas_año_actual['Margen_promedio'].iloc[0] - 
+                          metricas_año_anterior['Margen_promedio'].iloc[0]],
+            
+            'var_unidades': [(metricas_año_actual['Unidades_vendidas'].iloc[0] / 
+                             metricas_año_anterior['Unidades_vendidas'].iloc[0] - 1) * 100
+                            if metricas_año_anterior['Unidades_vendidas'].iloc[0] != 0 else 0]
+        })
+    else:
+        variaciones = pd.DataFrame({
+            'var_precio': [0],
+            'var_margen': [0],
+            'var_unidades': [0]
+        })
     
-    return df_ordenado.groupby('Producto').agg(
-        precio_promedio=pd.NamedAgg(column='Precio_promedio', aggfunc='mean'),
-        precio_promedio_anterior=pd.NamedAgg(column='Precio_promedio_anterior', aggfunc='mean'),
-        margen_promedio=pd.NamedAgg(column='Margen_promedio', aggfunc='mean'),
-        margen_promedio_anterior=pd.NamedAgg(column='Margen_promedio_anterior', aggfunc='mean'),
-        unidades_vendidas=pd.NamedAgg(column='Unidades_vendidas', aggfunc='sum'),
-        unidades_vendidas_anterior=pd.NamedAgg(column='Unidades_vendidas_anterior', aggfunc='sum')
-    ).reset_index()
+    return (
+        metricas_generales['Precio_unitario'].iloc[0],
+        variaciones['var_precio'].iloc[0],
+        metricas_generales['Margen_promedio'].iloc[0],
+        variaciones['var_margen'].iloc[0],
+        metricas_generales['Unidades_vendidas'].iloc[0],
+        variaciones['var_unidades'].iloc[0]
+    )
 
 def calcular_tendencia(x, y):
     return np.polyfit(x, y, 1)
